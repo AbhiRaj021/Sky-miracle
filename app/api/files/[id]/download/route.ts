@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import * as z from 'zod'
-import { getSupabase } from '@/lib/auth'
-import { logActivity } from '@/lib/activity'
-import { STORAGE_BUCKET } from '@/lib/files'
+import { logActivity } from '@/features/activity/log'
+import { STORAGE_BUCKET } from '@/features/files/constants'
+import { versionedFileName } from '@/features/files/utils'
+import { createClient } from '@/lib/supabase/server'
 
 /**
  * GET /api/files/:id/download?version=N&mode=view
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  const supabase = await getSupabase()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const downloadName =
     version.version_number === file.current_version
       ? file.file_name
-      : file.file_name.replace(/(\.[^.]+)?$/, ` (v${version.version_number})$1`)
+      : versionedFileName(file.file_name, version.version_number)
 
   const { data: signed, error } = await supabase.storage
     .from(STORAGE_BUCKET)

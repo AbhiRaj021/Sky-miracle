@@ -1,62 +1,53 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@/utils/supabase/middleware'
+import { createProxyClient } from '@/lib/supabase/proxy'
+
+// Pages for signed-out users. Signed-in users are sent to the dashboard instead.
+const GUEST_ONLY_PATHS = ['/login', '/signup', '/forgot-password']
 
 export async function proxy(request: NextRequest) {
-  const { supabase, supabaseResponse } = createClient(request)
-  const { data: { user } } = await supabase.auth.getUser()
-
-
+  const { supabase, getResponse } = createProxyClient(request)
   const path = request.nextUrl.pathname
 
-  // Public paths that do not require authentication
-  const isPublicPath = path.startsWith('/login') || path.startsWith('/signup') || path.startsWith('/forgot-password')
+  // Refreshes the session cookie; must run before any early return.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  // API auth paths or Next.js internals that should be skipped
-  if (path.startsWith('/api/auth') || path.startsWith('/_next') || path.includes('/favicon.ico')) {
-    return supabaseResponse
+  // Auth callbacks handle their own redirects.
+  if (path.startsWith('/api/auth')) {
+    return getResponse()
   }
+
+  const redirectTo = (pathname: string) => {
+    const response = NextResponse.redirect(new URL(pathname, request.url))
+    // Keep any refreshed auth cookies on the redirect.
+    getResponse().cookies.getAll().forEach((cookie) => response.cookies.set(cookie))
+    return response
+  }
+
+  const isGuestOnlyPath = GUEST_ONLY_PATHS.some((p) => path.startsWith(p))
 
   if (!user) {
-    // If not authenticated and trying to access a protected path, redirect to login
-    if (!isPublicPath) {
-      const loginUrl = new URL('/login', request.url)
-      return NextResponse.redirect(loginUrl)
-    }
-  } else {
-    // If authenticated and trying to access login/signup/forgot-password or root, redirect to dashboard
-    if (isPublicPath || path === '/') {
-      const dashboardUrl = new URL('/dashboard', request.url)
-      return NextResponse.redirect(dashboardUrl)
-    }
+    return isGuestOnlyPath ? getResponse() : redirectTo('/login')
+  }
 
-    // Role-based authorization for admin paths
-    if (path.startsWith('/admin')) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
+  if (isGuestOnlyPath || path === '/') {
+    return redirectTo('/dashboard')
+  }
 
-      if (!profile || profile.role !== 'admin') {
-        // Not authorized, redirect to dashboard
-        const dashboardUrl = new URL('/dashboard', request.url)
-        return NextResponse.redirect(dashboardUrl)
-      }
+  if (path.startsWith('/admin')) {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    if (profile?.role !== 'admin') {
+      return redirectTo('/dashboard')
     }
   }
 
-  return supabaseResponse
+  return getResponse()
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public files (images, documents, etc.)
-     */
+    // Everything except static assets and image optimization files.
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
