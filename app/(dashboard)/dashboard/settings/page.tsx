@@ -1,7 +1,8 @@
-import { PasswordForm } from '@/components/auth/password-form'
-import { RoleBadge } from '@/components/dashboard/role-badge'
-import { ProfileForm } from '@/components/settings/profile-form'
-import { requireUser } from '@/lib/auth'
+import { PageHeader } from '@/components/shared/page-header'
+import { RoleBadge } from '@/components/shared/role-badge'
+import { PasswordForm } from '@/features/auth/components/password-form'
+import { ProfileForm } from '@/features/auth/components/profile-form'
+import { requireUser } from '@/lib/auth/session'
 import { panelClass } from '@/lib/styles'
 
 export default async function SettingsPage() {
@@ -9,17 +10,19 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="mt-1 flex items-center gap-2 text-slate-400">
-          Your role: <RoleBadge role={profile.role} />
-          <span className="text-xs">(only admins can change roles)</span>
-        </p>
-      </div>
+      <PageHeader
+        title="Settings"
+        description={
+          <span className="flex items-center gap-2">
+            Your role: <RoleBadge role={profile.role} />
+            <span className="text-xs">(only admins can change roles)</span>
+          </span>
+        }
+      />
       <div className="grid gap-6 md:grid-cols-2">
         <section className={panelClass}>
           <h2 className="mb-4 text-lg font-semibold">Profile</h2>
-          <ProfileForm name={profile.name} email={profile.email} />
+          <ProfileForm />
         </section>
         <section className={panelClass}>
           <h2 className="mb-4 text-lg font-semibold">Change password</h2>
