@@ -96,6 +96,9 @@ export default function SignupPage() {
                 required
                 className="border-slate-800 bg-slate-950/50 text-white focus:border-blue-500 focus:ring-blue-500/20"
               />
+              {state?.errors?.confirmPassword && (
+                <p className="text-xs text-rose-400">{state.errors.confirmPassword[0]}</p>
+              )}
             </div>
 
             <Button

@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/utils/supabase/server'
-import { cookies } from 'next/headers'
+import { getSupabase, safeRedirectPath } from '@/lib/auth'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/dashboard'
+  // Only same-origin paths are allowed, so the link can't redirect off-site.
+  const next = safeRedirectPath(searchParams.get('next'))
 
   if (code) {
-    const cookieStore = await cookies()
-    const supabase = createClient(cookieStore)
+    const supabase = await getSupabase()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
       const forwardedHost = request.headers.get('x-forwarded-host')
